@@ -6,27 +6,25 @@ import cv2
 import numpy as np
 
 
-class datasetmaker:
+class datasetmaker(video_browser):
 
-    def __init__(self):
-        pass
+    def __init__(self,filename):
+        super().__init__(filename)
 
     '''
     This function process the video to get points for perspective transform
     '''
-    def process_input_video(self,filename:str):
-        browser = video_browser(filename)
-        points = browser.collect_points()
-        print(points)
+    def get_points_video(self):
+        points = self.collect_points()
+        points = np.array(points)
         return points
 
-    def apply_perspective_transform(frame, points):
+    def apply_perspective_transform(self,frame, points,width,height):
         
         assert len(points)==4,"no of points not equal to 4"
 
         # Define the destination points for the perspective transform
-        width = np.sqrt((points[0]-points[1])**2)
-        height = np.sqrt((points[2]-points[1]**2))
+        
         
         dst_points = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
 
@@ -40,3 +38,14 @@ class datasetmaker:
         warped_image = cv2.warpPerspective(frame, Mat, (width, height))
 
         return warped_image
+    
+    def generate_perspective_data(self,points):
+        print("Generating perspective transformed data for",self.frame_count,"images")
+        width =  int(np.sum(np.sqrt( (points[0]-points[1]) **2) )) 
+        height = int(np.sum(np.sqrt( (points[2]-points[1]) **2) ))
+        per_frames = []
+        for frame in self.frame_generator():
+            transformed_frame = self.apply_perspective_transform(frame,points,width,height)
+            per_frames.append(transformed_frame)
+
+        return per_frames

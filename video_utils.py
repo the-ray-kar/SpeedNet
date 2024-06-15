@@ -50,9 +50,48 @@ class video_browser:
             if key == ord('q') or len(self.points)==self.point_counts:
                 break
 
-         self.release()
-
          return self.points #return the points
+    
+    '''
+    destructor
+    '''
+    def __del__(self):
+        self.release()
 
+    '''
+    Generator to get frames from position 1 to position 2
+    '''
+
+    def frame_generator(self,is_gray_scale=True,position1=0,position2=None):
+        if position2==None:
+            position2 = self.frame_count-1
+        assert position1>=0,"invalid position 1"
+        assert position2<self.frame_count,"position2 is more than frame count"
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, position1) #set the cap position to beginining
+        datasize = position2-position1
+        print("% completed: ")
+        for i in range(position1,position2):
+            ret, frame = self.cap.read()
+            if(is_gray_scale):
+                frame  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
+            if not ret:
+                return
+            completion = i/datasize*100
+            if(completion%2==0):
+                print(completion," ",end="")
+            yield frame
+
+            
+
+    '''
+    Get specific frame
+    '''
+    def get_frame(self,position):
+        assert position>=0 and position<self.frame_count,"Position not in frame range"
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, position)
+        ret, frame = self.cap.read()
+        return frame
+
+        
             
          
