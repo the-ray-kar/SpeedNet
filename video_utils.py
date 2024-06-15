@@ -39,7 +39,7 @@ class video_browser:
     
     def collect_points(self):
          cv2.namedWindow(self.windowname)
-         cv2.createTrackbar('Framecount', self.windowname, 0, int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))-1, self.on_trackbar)
+         cv2.createTrackbar('Framecount', self.windowname, 0, self.frame_count-1, self.on_trackbar)
          cv2.setMouseCallback(self.windowname, self.select_points)
 
          while True:
@@ -48,6 +48,7 @@ class video_browser:
             
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q') or len(self.points)==self.point_counts:
+                cv2.imshow(self.windowname, self.screen)
                 break
 
          return self.points #return the points
