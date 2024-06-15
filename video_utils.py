@@ -87,10 +87,12 @@ class video_browser:
     '''
     Get specific frame
     '''
-    def get_frame(self,position):
+    def get_frame(self,position,is_gray_scale=True):
         assert position>=0 and position<self.frame_count,"Position not in frame range"
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, position)
         ret, frame = self.cap.read()
+        if is_gray_scale:
+            frame  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
         return frame
 
         

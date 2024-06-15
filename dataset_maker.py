@@ -4,6 +4,7 @@ This file process the video file to create the dataset
 from video_utils import video_browser
 import cv2
 import numpy as np
+import torch
 
 
 class datasetmaker(video_browser):
@@ -49,6 +50,26 @@ class datasetmaker(video_browser):
             per_frames.append(transformed_frame)
 
         return per_frames
+    
+        
+        
+    def generate_tensor_data(self,points):
+        old_frame = self.get_frame(0)
+        width =  int(np.sum(np.sqrt( (points[0]-points[1]) **2) )) 
+        height = int(np.sum(np.sqrt( (points[2]-points[1]) **2) ))
+        old_pers = self.apply_perspective_transform(old_frame,points,width,height)
+        for i in range(1,self.frame_count):
+            new_frame = self.get_frame(1)
+            new_pers = self.apply_perspective_transform(new_frame,points,width,height)
+            #flow = cv.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0) #calculate optic flow
+            shape = new_pers.shape
+            prev_next = np.zeros_like(new_pers,shape=(shape[0],shape[1],2)) #combine old and new
+            prev_next[:,:,0] = old_pers
+            prev_next[:,:,1] = new_pers
+            prev_next_tensor = torch.tensor(prev_next,dtype=torch.float32)
+            old_pers = new_pers
+            yield prev_next_tensor
+
     
 
 '''
