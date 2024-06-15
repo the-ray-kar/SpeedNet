@@ -9,8 +9,9 @@ import torch
 
 class datasetmaker(video_browser):
 
-    def __init__(self,filename):
+    def __init__(self,filename,label_filename):
         super().__init__(filename)
+        self.label_file = label_filename
 
     '''
     This function process the video to get points for perspective transform
@@ -51,24 +52,44 @@ class datasetmaker(video_browser):
 
         return per_frames
     
-        
-        
+    def load_label_data(self):
+        labels = []
+        with open(self.label_file, 'r') as file:
+             for line in file:
+                line.replace("\n","")
+                labels.append(float(line))
+
+        return labels
+                
     def generate_tensor_data(self,points):
-        old_frame = self.get_frame(0)
+        
+        labels = self.load_label_data()
         width =  int(np.sum(np.sqrt( (points[0]-points[1]) **2) )) 
         height = int(np.sum(np.sqrt( (points[2]-points[1]) **2) ))
+        old_frame = self.get_frame(0)
         old_pers = self.apply_perspective_transform(old_frame,points,width,height)
-        for i in range(1,self.frame_count):
-            new_frame = self.get_frame(1)
+
+        mid_frame = self.get_frame(1)
+        mid_pers = self.apply_perspective_transform(mid_frame,points,width,height)
+  
+
+        for i in range(2,self.frame_count):
+            new_frame = self.get_frame(i)
             new_pers = self.apply_perspective_transform(new_frame,points,width,height)
             #flow = cv.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0) #calculate optic flow
             shape = new_pers.shape
-            prev_next = np.zeros_like(new_pers,shape=(shape[0],shape[1],2)) #combine old and new
+            prev_next = np.zeros_like(new_pers,shape=(shape[0],shape[1],3)) #combine old , mid and new
             prev_next[:,:,0] = old_pers
+            prev_next[:,:,1] = mid_pers
             prev_next[:,:,1] = new_pers
             prev_next_tensor = torch.tensor(prev_next,dtype=torch.float32)
-            old_pers = new_pers
-            yield prev_next_tensor
+            batch_tensor_image = prev_next_tensor.unsqueeze(0) 
+            batch_tensor_image=batch_tensor_image.permute(0,3,1,2)
+            #prev_next_tensor = transform(prev_next)
+            old_pers = mid_pers
+            mid_pers = new_pers
+            label = torch.tensor(labels[i], dtype=torch.float32)
+            yield batch_tensor_image,label
 
     
 
