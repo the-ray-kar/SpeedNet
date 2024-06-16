@@ -85,7 +85,7 @@ class video_browser:
             
 
     '''
-    Get specific frame
+    Get specific frame normalized
     '''
     def get_frame(self,position,is_gray_scale=True):
         assert position>=0 and position<self.frame_count,"Position not in frame range"
@@ -93,7 +93,7 @@ class video_browser:
         ret, frame = self.cap.read()
 
         if ret and is_gray_scale:
-            frame  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
+            frame  = 2*cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)/128 -1 #gray scale and normalize 
         return frame
 
         

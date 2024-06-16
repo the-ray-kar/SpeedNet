@@ -60,10 +60,47 @@ class datasetmaker(video_browser):
                 labels.append(float(line))
 
         return labels
-                
-    def generate_tensor_data(self,points):
+
+    def generate_tensor_data(self,points,batchsize=10,epochs=10):
         
         labels = self.load_label_data()
+        max_label = max(labels)
+        width =  int(np.sum(np.sqrt( (points[0]-points[1]) **2) )) 
+        height = int(np.sum(np.sqrt( (points[2]-points[1]) **2) ))
+        
+
+        for _ in range(epochs):
+            random_selections = np.random.randint(1,self.frame_count-2,size=batchsize)
+            batch = []
+            label_batch = []
+            for i in random_selections:
+                old_frame = self.get_frame(i-1)
+                old_pers = self.apply_perspective_transform(old_frame,points,width,height)
+                mid_frame = self.get_frame(i)
+                mid_pers = self.apply_perspective_transform(mid_frame,points,width,height)
+                new_frame = self.get_frame(i+1)
+                new_pers = self.apply_perspective_transform(new_frame,points,width,height)
+                shape = new_pers.shape
+                prev_next = np.zeros_like(new_pers,shape=(shape[0],shape[1],3))
+                prev_next[:,:,0] = old_pers
+                prev_next[:,:,1] = mid_pers
+                prev_next[:,:,1] = new_pers
+
+                batch.append(prev_next)
+                label_batch.append(labels[i]*2/max_label-1)
+            batch = np.array(batch)
+            batch = torch.tensor(batch,dtype=torch.float32)
+            batch = batch.permute(0,3,1,2) #format for CNN
+            label_batch = np.array(label_batch)
+            label_batch = torch.tensor(label_batch,dtype=torch.float32)
+            yield batch,label_batch
+
+
+
+    def generate_tensor_data_old(self,points):
+        
+        labels = self.load_label_data()
+        max_label = max(labels)
         width =  int(np.sum(np.sqrt( (points[0]-points[1]) **2) )) 
         height = int(np.sum(np.sqrt( (points[2]-points[1]) **2) ))
         old_frame = self.get_frame(0)
@@ -88,7 +125,7 @@ class datasetmaker(video_browser):
             #prev_next_tensor = transform(prev_next)
             old_pers = mid_pers
             mid_pers = new_pers
-            label = torch.tensor(labels[i], dtype=torch.float32)
+            label = torch.tensor(2*labels[i]/max_label-1, dtype=torch.float32)
             yield batch_tensor_image,label
 
     
