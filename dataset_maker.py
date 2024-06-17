@@ -61,7 +61,13 @@ class datasetmaker(video_browser):
 
         return labels
 
-    def generate_tensor_data(self,points,batchsize=10,epochs=10):
+    def generate_tensor_data(self,points,batchsize=10,epochs=10,start_frame=1,end_frame=None):
+
+        if end_frame ==None:
+            end_frame =self.frame_count-2
+        
+        assert end_frame<=self.frame_count-2 and end_frame>5," end_frame value not in range"
+        assert start_frame>=1 and start_frame<end_frame-10,"start frame out of range"
         
         labels = self.load_label_data()
         max_label = max(labels)
@@ -127,8 +133,85 @@ class datasetmaker(video_browser):
             mid_pers = new_pers
             label = torch.tensor(2*labels[i]/max_label-1, dtype=torch.float32)
             yield batch_tensor_image,label
+'''
+Visualize Perspective transformed road
+'''
 
+class view_perspective_transform:
+
+    def __init__(self,video_file,points,width,height):
+        self.filename = video_file
+        self.points = points
+        self.width = width
+        self.height = height
+        self.windowname = "warped perspective"
+        self.cap = cv2.VideoCapture(video_file)
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        ret,frame = self.cap.read()
+        self.screen= self.apply_perspective_transform(frame,self.points,self.width,self.height)
+        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.track_position = 0
+        self.play = False
+
+
+    def apply_perspective_transform(self,frame, points,width,height):
+        
+        assert len(points)==4,"no of points not equal to 4"
+
+        # Define the destination points for the perspective transform
+        
+        
+        dst_points = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
+
+        # Convert points to numpy array format
+        src_points = np.float32(points)
+
+        # Compute the perspective transform matrix
+        Mat = cv2.getPerspectiveTransform(src_points, dst_points)
+
+        # Apply the perspective transform to the frame
+        warped_image = cv2.warpPerspective(frame, Mat, (width, height))
+
+        return warped_image
     
+    def on_trackbar(self,position):
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, position)
+        self.track_position = position
+        ret,frame = self.cap.read()
+        if ret:
+            self.screen= self.apply_perspective_transform(frame,self.points,self.width,self.height)
+        
+
+        
+    def release(self):
+            self.cap.release() #Release the reader
+            cv2.destroyAllWindows()
+
+    def view_result(self):
+        cv2.namedWindow(self.windowname)
+        cv2.createTrackbar('Framecount', self.windowname, 0, self.frame_count-1, self.on_trackbar)
+        while True:
+      
+            cv2.imshow(self.windowname, self.screen)
+
+            
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
+            elif key == ord('p'): #play and pause
+                self.play = not self.play
+            
+            if (self.play):
+                self.track_position+=1
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES,self.track_position)
+                ret,frame = self.cap.read()
+                if ret:
+                    self.screen = self.screen= self.apply_perspective_transform(frame,self.points,self.width,self.height)
+                else:
+                    break
+            
+        cv2.destroyAllWindows()
+        self.cap.release()
 
 '''
 This class contains function to replay frames stored by numpy .npy files
