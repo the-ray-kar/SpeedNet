@@ -139,20 +139,24 @@ Visualize Perspective transformed road
 
 class view_perspective_transform:
 
-    def __init__(self,video_file,points,width,height):
+    def __init__(self,video_file,points,width,height,grayscale=False,resize=(0,0)):
         self.filename = video_file
         self.points = points
         self.width = width
         self.height = height
         self.windowname = "warped perspective"
         self.cap = cv2.VideoCapture(video_file)
+        self.videofile = video_file
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         ret,frame = self.cap.read()
+        self.grayscale = grayscale
+        self.resize = resize
         self.screen= self.apply_perspective_transform(frame,self.points,self.width,self.height)
+        self.screen = self.resize_frame(self.screen,self.resize)
         self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.track_position = 0
         self.play = False
-
+        
 
     def apply_perspective_transform(self,frame, points,width,height):
         
@@ -180,21 +184,46 @@ class view_perspective_transform:
         ret,frame = self.cap.read()
         if ret:
             self.screen= self.apply_perspective_transform(frame,self.points,self.width,self.height)
-        
+            self.screen = self.resize_frame(self.screen,self.resize)
+            if(self.grayscale):
+                self.screen=cv2.cvtColor(self.screen, cv2.COLOR_BGR2GRAY)
+                #self.screen = self.process_image(self.screen)
+                cv2.imshow(self.windowname,self.screen)
+    
+    def process_image(self,frame:np.ndarray):
+        #frame = cv2.equalizeHist(frame) #Histogram equilization for better contrast : Bad idea
+        #frame = self.power_normalize(frame)
+        frame = cv2.adaptiveThreshold(frame, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY,blockSize=11, C=2)
+        return frame
 
+
+    def power_normalize(self,frame:np.ndarray):
+        frame = frame/255
+        frame = np.power(frame,1.5)
+        return np.uint8(frame*255)
         
     def release(self):
             self.cap.release() #Release the reader
             cv2.destroyAllWindows()
 
+    def resize_frame(self,frame,resize=(0,0)):
+        if(resize[0]!=0 and resize[1]!=0):
+            shape =frame.shape
+            dx = round(shape[1]*resize[0])
+            dy = round(shape[0]*resize[1])
+            return cv2.resize(frame,dsize=(dx,dy))
+        
+        return frame
+
+
     def view_result(self):
         cv2.namedWindow(self.windowname)
         cv2.createTrackbar('Framecount', self.windowname, 0, self.frame_count-1, self.on_trackbar)
         while True:
-      
+        
+
             cv2.imshow(self.windowname, self.screen)
 
-            
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 break
@@ -206,14 +235,68 @@ class view_perspective_transform:
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES,self.track_position)
                 ret,frame = self.cap.read()
                 if ret:
-                    self.screen = self.screen= self.apply_perspective_transform(frame,self.points,self.width,self.height)
+                    self.screen = self.apply_perspective_transform(frame,self.points,self.width,self.height)
+                    self.screen = self.resize_frame(self.screen,self.resize)
+                    if(self.grayscale):
+                        self.screen=cv2.cvtColor(self.screen, cv2.COLOR_BGR2GRAY)
+                        #self.screen = self.process_image(self.screen)
                 else:
                     break
             
         cv2.destroyAllWindows()
         self.cap.release()
 
+    def generate_dataset(self,stackframes:int,labels:np.ndarray,savefolderlocation:str): #stack n gray frames 
+        if(self.cap==None):
+            self.cap = cv2.VideoCapture(self.video_file)
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        else:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        
+        
+        count = 0
+        frames =[]
+        data_labels = []
+        npframes = []
+        while True:
+            
+            ret,frame =self.cap.read() #Read the frames
+            if not ret:
+                break
+            frame = self.apply_perspective_transform(frame,self.points,self.width,self.height)
+            frame = self.resize_frame(frame,self.resize)
+            frame  =cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            #count         -> 0 1 2 3 4 5 6 7 8 9 10     11 12
+            #len(frame)       0 1 2 3 4 5 6 7 8 9 10  0  1   2
+            
+            if count%stackframes==0 and count!=0:
+                #stack the frames
+                npframe = np.array(frames)
+                npframes.append(npframe)
+                speeds = labels[count-stackframes:count]
+                mean_speed = np.mean(speeds)
+                data_labels.append(mean_speed)
+                frames = []
+                if count%(stackframes*1000):
+                    print(count/self.frame_count*100)
+            
+            frames.append(frame)
+            
+            count+=1
+
+        data_labels = np.array(data_labels)
+        labelfilename = savefolderlocation+"/meanlabels"+str(stackframes)+".npy"
+        np.save(labelfilename,data_labels) #save the labels as well
+        savefilename = savefolderlocation+"/framedata.npy"
+        np.save(savefilename,npframes,allow_pickle=True)
+        print("Dataset created with shape",npframe.shape,"And length ",len(data_labels),len(npframes))
+
+
+
+
 '''
+
 This class contains function to replay frames stored by numpy .npy files
 These files are larger as they are uncompressed
 '''
